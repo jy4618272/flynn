@@ -109,7 +109,7 @@ func (m *Main) Run(args ...string) error {
 
 	target := fmt.Sprintf("http://%s:1111", opt.Host)
 	m.logger.Println("checking for existing discoverd process at", target)
-	if err := discoverd.NewClientWithHTTP(target, &http.Client{}).Ping(); err == nil {
+	if err := discoverd.NewClientWithURL(target).Ping(target); err == nil {
 		m.logger.Println("discoverd responding at", target, "taking over")
 
 		// update DISCOVERD environment variable so that the default
@@ -139,12 +139,13 @@ func (m *Main) Run(args ...string) error {
 		}
 		m.logger.Printf("discoverd listening for DNS on %s", addr)
 
-		targetLogIndex, err = discoverd.NewClientWithURL(target).Shutdown()
+		targetLogIndex, err = discoverd.NewClientWithURL(target).Shutdown(target)
 		if err != nil {
 			return err
 		}
 	} else {
 		m.logger.Println("failed to contact existing discoverd server, starting up without takeover")
+		m.logger.Println("err:", err)
 	}
 
 	// Open listener.
@@ -212,7 +213,7 @@ func (m *Main) Run(args ...string) error {
 
 			// Notify webhook.
 			if opt.Notify != "" {
-				m.Notify(opt.Notify, "", addr)
+				m.Notify(opt.Notify, addr)
 			}
 		}()
 	}
@@ -242,7 +243,7 @@ func (m *Main) Run(args ...string) error {
 	if host == "0.0.0.0" {
 		httpAddr = net.JoinHostPort(os.Getenv("EXTERNAL_IP"), port)
 	}
-	m.Notify(opt.Notify, "http://"+httpAddr, opt.DNSAddr)
+	m.Notify(opt.Notify, opt.DNSAddr)
 	go func() {
 		for {
 			hb, err := discoverd.NewClientWithURL("http://"+httpAddr).AddServiceAndRegister("discoverd", httpAddr)
@@ -505,11 +506,9 @@ func (m *Main) openHTTPServer() error {
 }
 
 // Notify sends a POST to notifyURL to let it know that addr is accessible.
-func (m *Main) Notify(notifyURL, httpURL, dnsAddr string) {
+func (m *Main) Notify(notifyURL, dnsAddr string) {
 	m.mu.Lock()
-	if httpURL != "" {
-		m.status.URL = httpURL
-	}
+	m.status.URL = strings.Join(m.peers, ",")
 	if dnsAddr != "" {
 		m.status.DNS = dnsAddr
 	}

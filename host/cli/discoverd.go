@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"log"
-	"net/http"
 
 	"github.com/flynn/flynn/Godeps/_workspace/src/github.com/flynn/go-docopt"
 	"github.com/flynn/flynn/discoverd/client"
@@ -25,8 +24,8 @@ Demotes a Flynn node, removing it from the consensus cluster.
 
 func runPromote(args *docopt.Args, client *cluster.Client) error {
 	addr := args.String["ADDR"]
-	dd := discoverd.NewClientWithHTTP(addr, &http.Client{})
-	if err := dd.Promote(); err != nil {
+	dd := discoverd.DefaultClient
+	if err := dd.Promote(addr); err != nil {
 		return err
 	}
 	log.Println("Promoted peer", addr)
@@ -38,11 +37,11 @@ func runDemote(args *docopt.Args, client *cluster.Client) error {
 	addr := args.String["ADDR"]
 	force := false
 	// first try to connect to the peer and gracefully demote it
-	dd := discoverd.NewClientWithHTTP(addr, &http.Client{})
-	err := dd.Ping()
+	dd := discoverd.DefaultClient
+	err := dd.Ping(addr)
 	if err == nil {
 		log.Println("Attempting to gracefully demote peer.")
-		err = dd.Demote()
+		err = dd.Demote(addr)
 	} else if !force {
 		return errors.New("Failed to contact peer to attempt graceful demotion and --force not given.")
 	}
