@@ -47,6 +47,11 @@ func main() {
 				{Name: "flynn"},
 			},
 		},
+		Auth: configuration.Auth{
+			"flynn": configuration.Parameters{
+				"auth_key": os.Getenv("AUTH_KEY"),
+			},
+		},
 	}
 	config.HTTP.Secret = os.Getenv("REGISTRY_HTTP_SECRET")
 

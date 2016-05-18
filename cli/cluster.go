@@ -216,6 +216,11 @@ func runDockerLogin(host, key string) error {
 	err := cmd.Run()
 	if strings.Contains(out.String(), "certificate signed by unknown authority") {
 		err = ErrDockerTLSError
+	} else if strings.Contains(out.String(), "no successful auth challenge") {
+		// this means auth is not required to access the docker-receive
+		// app because the requests are considered to be internal to
+		// the cluster
+		err = nil
 	}
 	return err
 }
