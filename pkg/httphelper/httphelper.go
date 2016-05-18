@@ -1,12 +1,14 @@
 package httphelper
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"reflect"
+	"strings"
 	"syscall"
 	"time"
 
@@ -253,4 +255,59 @@ func JSON(w http.ResponseWriter, status int, v interface{}) {
 func DecodeJSON(req *http.Request, i interface{}) error {
 	dec := json.NewDecoder(req.Body)
 	return dec.Decode(i)
+}
+
+func ClientIP(req *http.Request) string {
+	if forwardedFor := req.Header.Get("X-Forwarded-For"); forwardedFor != "" {
+		if ips := strings.Split(forwardedFor, ","); len(ips) > 0 {
+			return strings.TrimSpace(ips[len(ips)-1])
+		}
+	}
+	addr, _, _ := net.SplitHostPort(req.RemoteAddr)
+	return addr
+}
+
+var internalIPSubnets = []*net.IPNet{
+	mustParseCIDR("10.0.0.0/8"),      // 10.0.0.0 - 10.255.255.255
+	mustParseCIDR("172.16.0.0/12"),   // 172.16.0.0 - 172.31.255.255
+	mustParseCIDR("192.168.0.0/16"),  // 192.168.0.0 - 192.168.255.255
+	mustParseCIDR("127.0.0.0/8"),     // 127.0.0.0 - 127.255.255.255
+	mustParseCIDR("fd00::/8"),        // fdxx:xxxx:xxxx...
+	mustParseCIDR("::1/128"),         // ::1
+	mustParseCIDR("192.0.2.0/24"),    // TEST-NET (for containers)
+	mustParseCIDR("198.51.100.0/24"), // TEST-NET (for containers)
+	mustParseCIDR("203.0.113.0/24"),  // TEST-NET (for containers)
+	mustParseCIDR("100.64.0.0/10"),   // for containers
+}
+
+func mustParseCIDR(s string) *net.IPNet {
+	_, n, err := net.ParseCIDR(s)
+	if err != nil {
+		panic(fmt.Sprintf("ParseCIDR(%q): %v", s, err))
+	}
+	return n
+}
+
+func IsInternal(req *http.Request) bool {
+	if ip := net.ParseIP(ClientIP(req)); ip != nil {
+		for _, v := range internalIPSubnets {
+			if v.Contains(ip) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func IsAuthorized(req *http.Request, keys []string) bool {
+	_, password, _ := req.BasicAuth()
+	if password == "" {
+		password = req.URL.Query().Get("key")
+	}
+	for _, key := range keys {
+		if len(password) == len(key) && subtle.ConstantTimeCompare([]byte(password), []byte(key)) == 1 {
+			return true
+		}
+	}
+	return false
 }

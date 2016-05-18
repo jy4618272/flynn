@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/md5"
-	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -318,22 +317,7 @@ func muxHandler(main http.Handler, authKeys []string) http.Handler {
 			w.WriteHeader(200)
 			return
 		}
-		_, password, _ := r.BasicAuth()
-		if password == "" && r.URL.Path == "/ca-cert" {
-			main.ServeHTTP(w, r)
-			return
-		}
-		if password == "" && (strings.Contains(r.Header.Get("Accept"), "text/event-stream") || r.URL.Path == "/backup") {
-			password = r.URL.Query().Get("key")
-		}
-		var authed bool
-		for _, k := range authKeys {
-			if len(password) == len(k) && subtle.ConstantTimeCompare([]byte(password), []byte(k)) == 1 {
-				authed = true
-				break
-			}
-		}
-		if !authed {
+		if r.URL.Path != "/ca-cert" && !httphelper.IsAuthorized(r, authKeys) {
 			w.WriteHeader(401)
 			return
 		}

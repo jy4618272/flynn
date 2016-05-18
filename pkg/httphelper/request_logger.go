@@ -1,9 +1,7 @@
 package httphelper
 
 import (
-	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	log "github.com/flynn/flynn/Godeps/_workspace/src/gopkg.in/inconshreveable/log15.v2"
@@ -20,16 +18,8 @@ func NewRequestLogger(handler http.Handler) http.Handler {
 		rw.ctx = ctxhelper.NewContextLogger(rw.Context(), logger)
 
 		start := time.Now()
-		var clientIP string
-		clientIPs := strings.Split(req.Header.Get("X-Forwarded-For"), ",")
-		if len(clientIPs) > 0 {
-			clientIP = strings.TrimSpace(clientIPs[len(clientIPs)-1])
-		}
-		if clientIP == "" {
-			clientIP, _, _ = net.SplitHostPort(req.RemoteAddr)
-		}
 
-		logger.Info("request started", "method", req.Method, "path", req.URL.Path, "client_ip", clientIP)
+		logger.Info("request started", "method", req.Method, "path", req.URL.Path, "client_ip", ClientIP(req))
 
 		handler.ServeHTTP(rw, req)
 

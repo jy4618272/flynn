@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	. "github.com/flynn/flynn/Godeps/_workspace/src/github.com/flynn/go-check"
@@ -553,15 +552,6 @@ func (s *S) TestGetCACertWithAuth(c *C) {
 	cert, err := s.c.GetCACert()
 	c.Assert(err, IsNil)
 	c.Assert(cert, DeepEquals, s.caCert)
-}
-
-func (s *S) TestGetCACertWithInvalidAuth(c *C) {
-	client, err := controller.NewClient(s.srv.URL, "invalid-key")
-	c.Assert(err, IsNil)
-	cert, err := client.GetCACert()
-	c.Assert(err, Not(IsNil))
-	c.Assert(len(cert), Equals, 0)
-	c.Assert(strings.Contains(err.Error(), "unexpected status 401"), Equals, true)
 }
 
 func (s *S) TestGetCACertWithoutAuth(c *C) {
