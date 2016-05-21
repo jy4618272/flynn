@@ -84,6 +84,7 @@ type Client interface {
 	GetKey(keyID string) (*ct.Key, error)
 	DeleteKey(id string) error
 	ProviderList() ([]*ct.Provider, error)
+	VolumeList() ([]*ct.Volume, error)
 	Backup() (io.ReadCloser, error)
 	GetBackupMeta() (*ct.ClusterBackup, error)
 	DeleteRelease(appID, releaseID string) (*ct.ReleaseDeletion, error)

@@ -690,6 +690,11 @@ func (s *Scheduler) HandlePlacementRequest(req *PlacementRequest) {
 		return
 	}
 
+	//TODO(jpg): Need to modify logic if we are searching for a volume.
+	// Not sure how we will handle priority of placing job on a host without an
+	// existing job of the same release/type running but I'm sure we will figure
+	// something out.
+
 	formation := req.Job.Formation
 	counts := s.jobs.GetHostJobCounts(formation.key(), req.Job.Type)
 	var minCount int = math.MaxInt32
@@ -831,6 +836,12 @@ func (s *Scheduler) StartJob(job *Job) {
 			time.Sleep(delay)
 		}
 
+		// TODO(jpg): PlaceJob will already know if a volume needs a data volume provisioned.
+		// what we need to do however is be able to map jobs to volumes in memory in the scheduler
+		// and update said mapping here if we find a volume along with placing the job on the same
+		// host as that volume.
+		// If we track it in memory in s.jobs then we will need to adjust job.needsVolume to be aware
+		// of this state and only create a volume on the target host if there is no mapping available.
 		log.Info("placing job in the cluster")
 		config, host, err := s.PlaceJob(job)
 		if err == ErrNotLeader {
@@ -847,6 +858,8 @@ func (s *Scheduler) StartJob(job *Job) {
 			continue
 		}
 
+		// TODO(jpg): needsVolume will need to be modified in some way to determine whether we actually need to provision
+		// a new volume or if during PlaceJob we chose a host that already has a volume ready for us.
 		if job.needsVolume() {
 			log.Info("provisioning data volume", "host.id", host.ID)
 			if err := utils.ProvisionVolume(host.client, config); err != nil {
@@ -854,6 +867,8 @@ func (s *Scheduler) StartJob(job *Job) {
 				continue
 			}
 		}
+
+		// TODO(jpg): Persist new volume to controller here.
 
 		log.Info("adding job to the cluster", "host.id", host.ID, "job.id", config.ID)
 		if err := host.client.AddJob(config); err != nil {

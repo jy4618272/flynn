@@ -455,3 +455,20 @@ type AppGarbageCollectionEvent struct {
 	AppGarbageCollection *AppGarbageCollection `json:"app_garbage_collection"`
 	Error                string                `json:"error"`
 }
+
+type Volume struct {
+	ID          string             `json:"id"`
+	HostID      string             `json:"host_id"`
+	Attachments []VolumeAttachment `json:"attachments,omitempty"`
+	CreatedAt   *time.Time         `json:"created_at,omitempty"`
+	UpdatedAt   *time.Time         `json:"updated_at,omitempty"`
+}
+
+type VolumeAttachment struct {
+	VolumeID  string     `json:"volume_id"`
+	JobID     string     `json:"job_id"`
+	Writeable bool       `json:"writeable"`
+	Target    string     `json:"target"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}

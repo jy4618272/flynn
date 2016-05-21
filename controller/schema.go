@@ -384,6 +384,23 @@ $$ LANGUAGE plpgsql`,
 	migrations.Add(18,
 		`INSERT INTO event_types (name) VALUES ('app_garbage_collection')`,
 	)
+	migrations.Add(19,
+		`CREATE TABLE volume_cache (
+			volume_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+			host_id text,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`,
+		`CREATE TABLE volume_attachments (
+			volume_id uuid REFERENCES volume_cache (volume_id),
+			job_id uuid REFERENCES job_cache (job_id),
+			writeable boolean,
+			target text,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			updated_at timestamptz NOT NULL DEFAULT now(),
+			PRIMARY KEY (volume_id, job_id)
+		)`,
+	)
 }
 
 func migrateDB(db *postgres.DB) error {

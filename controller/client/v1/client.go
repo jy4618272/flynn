@@ -731,6 +731,12 @@ func (c *Client) ProviderList() ([]*ct.Provider, error) {
 	return providers, c.Get("/providers", &providers)
 }
 
+// VolumeList returns a list of all volumes.
+func (c *Client) VolumeList() ([]*ct.Volume, error) {
+	var volumes []*ct.Volume
+	return volumes, c.Get("/volumes", &volumes)
+}
+
 // Backup takes a backup of the cluster
 func (c *Client) Backup() (io.ReadCloser, error) {
 	res, err := c.RawReq("GET", "/backup", nil, nil, nil)
