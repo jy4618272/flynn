@@ -1268,6 +1268,13 @@ func (s *CLISuite) TestDockerPush(t *c.C) {
 	app := &ct.App{Name: "cli-test-docker-push"}
 	t.Assert(client.CreateApp(app), c.IsNil)
 
+	// TODO: remove this once CI configures DockerPushURL correctly
+	conf, err := config.ReadFile(flynnrc)
+	t.Assert(err, c.IsNil)
+	t.Assert(conf.Clusters, c.HasLen, 1)
+	conf.Clusters[0].DockerPushURL = strings.Replace(conf.Clusters[0].ControllerURL, "controller", "docker", 1)
+	conf.SaveTo(flynnrc)
+
 	// flynn docker push image
 	t.Assert(flynn(t, "/", "-a", app.Name, "docker", "push", repo), Succeeds)
 

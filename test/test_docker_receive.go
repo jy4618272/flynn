@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os/exec"
+	"strings"
 	"time"
 
 	c "github.com/flynn/flynn/Godeps/_workspace/src/github.com/flynn/go-check"
@@ -32,7 +33,10 @@ func (s *DockerReceiveSuite) TestPushImage(t *c.C) {
 	defer stream.Close()
 
 	// push the Docker image to docker-receive
-	u, err := url.Parse(s.clusterConf(t).DockerPushURL)
+	//
+	// TODO: use cluster.DockerPushURL once CI configures it properly
+	// u, err := url.Parse(s.clusterConf(t).DockerPushURL)
+	u, err := url.Parse(strings.Replace(s.clusterConf(t).ControllerURL, "controller", "docker", 1))
 	t.Assert(err, c.IsNil)
 	tag := fmt.Sprintf("%s/%s:latest", u.Host, repo)
 	t.Assert(run(t, exec.Command("docker", "tag", "--force", repo, tag)), Succeeds)
