@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -63,25 +64,38 @@ oD+LQmyOKcahAiB05Btab2QQyQfwpsWOpP5GShCwefoj+CGgfr7kWRJdLQIgTMZe
 
 var tlsCertsMux sync.Mutex
 
-func tlsConfigForDomain(domain string) ([]byte, []byte) {
+func tlsConfigForDomain(domain string) *tlscert.Cert {
 	tlsCertsMux.Lock()
 	defer tlsCertsMux.Unlock()
 	domain = strings.ToLower(domain)
 	if d, _, err := net.SplitHostPort(domain); err == nil {
 		domain = d
 	}
+	uri, err := url.Parse("http://" + domain)
+	if err != nil {
+		panic(err)
+	}
+	domain = uri.Host
 	if strings.HasSuffix(domain, ".example.com") {
 		domain = "example.com"
 	}
+	parts := strings.SplitAfter(domain, ".")
+	wildcard := "*."
+	for i := 1; i < len(parts); i++ {
+		wildcard += parts[i]
+	}
+	if c, ok := tlsCerts[wildcard]; ok {
+		return c
+	}
 	if c, ok := tlsCerts[domain]; ok {
-		return []byte(c.CACert), []byte(c.PrivateKey)
+		return c
 	}
 	c, err := tlscert.Generate([]string{domain})
 	if err != nil {
 		panic(err)
 	}
 	tlsCerts[domain] = c
-	return []byte(c.Cert), []byte(c.PrivateKey)
+	return c
 }
 
 func httpTestHandler(id string) http.Handler {
@@ -91,9 +105,9 @@ func httpTestHandler(id string) http.Handler {
 }
 
 func newHTTPClient(serverName string) *http.Client {
-	caCert, _ := tlsConfigForDomain(serverName)
+	cert := tlsConfigForDomain(serverName)
 	pool := x509.NewCertPool()
-	pool.AppendCertsFromPEM([]byte(caCert))
+	pool.AppendCertsFromPEM([]byte(cert.CACert))
 
 	if strings.Contains(serverName, ":") {
 		serverName, _, _ = net.SplitHostPort(serverName)
@@ -106,8 +120,8 @@ func newHTTPClient(serverName string) *http.Client {
 }
 
 func (s *S) newHTTPListener(t testutil.TestingT) *HTTPListener {
-	caCert, key := tlsConfigForDomain("example.com")
-	pair, err := tls.X509KeyPair(caCert, key)
+	cert := tlsConfigForDomain("example.com")
+	pair, err := tls.X509KeyPair([]byte(cert.CACert), []byte(cert.PrivateKey))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,9 +202,7 @@ func (s *S) TestAddHTTPRoute(c *C) {
 
 func (s *S) TestAddHTTPRouteWithCert(c *C) {
 	srv1 := httptest.NewServer(httpTestHandler("1"))
-	srv2 := httptest.NewServer(httpTestHandler("2"))
 	defer srv1.Close()
-	defer srv2.Close()
 
 	l := s.newHTTPListener(c)
 	defer l.Close()
@@ -203,6 +215,32 @@ func (s *S) TestAddHTTPRouteWithCert(c *C) {
 	assertGet(c, "http://"+l.Addr, domain, "1")
 	assertGet(c, "https://"+l.TLSAddr, domain, "1")
 
+	unregister()
+}
+
+func (s *S) TestAddHTTPRouteWithExistingCert(c *C) {
+	srv1 := httptest.NewServer(httpTestHandler("1"))
+	srv2 := httptest.NewServer(httpTestHandler("2"))
+	defer srv1.Close()
+	defer srv2.Close()
+
+	l := s.newHTTPListener(c)
+	defer l.Close()
+
+	tlsConfigForDomain("*.bar.example.org")
+
+	domain := "1.bar.example.org"
+	addHTTPRouteForDomain(domain, c, l)
+	unregister := discoverdRegisterHTTP(c, l, srv1.Listener.Addr().String())
+	assertGet(c, "http://"+l.Addr, domain, "1")
+	assertGet(c, "https://"+l.TLSAddr, domain, "1")
+	unregister()
+
+	domain = "2.bar.example.org"
+	addHTTPRouteForDomain(domain, c, l)
+	unregister = discoverdRegisterHTTP(c, l, srv2.Listener.Addr().String())
+	assertGet(c, "http://"+l.Addr, domain, "2")
+	assertGet(c, "https://"+l.TLSAddr, domain, "2")
 	unregister()
 }
 
@@ -236,12 +274,14 @@ func addHTTPRoute(c *C, l *HTTPListener) *router.Route {
 }
 
 func addHTTPRouteForDomain(domain string, c *C, l *HTTPListener) *router.Route {
-	caCert, key := tlsConfigForDomain(domain)
+	cert := tlsConfigForDomain(domain)
 	return addRoute(c, l, router.HTTPRoute{
 		Domain:  domain,
 		Service: "test",
-		TLSCert: string(caCert),
-		TLSKey:  string(key),
+		Certificate: &router.RouteCert{
+			TLSCert: cert.Cert,
+			TLSKey:  cert.PrivateKey,
+		},
 	}.ToRoute())
 }
 

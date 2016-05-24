@@ -149,5 +149,43 @@ CREATE TRIGGER check_http_route_update
 		`ALTER TABLE tcp_routes ADD COLUMN leader boolean NOT NULL DEFAULT FALSE`,
 		`ALTER TABLE http_routes ADD COLUMN leader boolean NOT NULL DEFAULT FALSE`,
 	)
+	m.Add(5,
+		`CREATE TABLE certificates (
+			id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+			tls_cert text,
+			tls_key text,
+			tls_cert_sha256 text,
+			created_at timestamptz NOT NULL DEFAULT now(),
+			updated_at timestamptz NOT NULL DEFAULT now(),
+			deleted_at timestamptz
+		)`,
+		`CREATE UNIQUE INDEX ON certificates (tls_cert_sha256) WHERE deleted_at IS NULL`,
+		`CREATE TABLE routes_certificate (
+			http_route_id uuid NOT NULL REFERENCES http_routes (id) ON DELETE CASCADE,
+			certificate_id uuid NOT NULL REFERENCES certificates (id) ON DELETE RESTRICT,
+			PRIMARY KEY (http_route_id, certificate_id)
+		)`,
+		// Create certificate for http_routes with tls_key set,
+		// taking care not to create duplicates
+		`DO $$
+		DECLARE
+			http_route RECORD;
+			certificate_id uuid;
+		BEGIN
+			FOR http_route IN SELECT * FROM http_routes WHERE tls_key IS NOT NULL LOOP
+				SELECT INTO certificate_id id FROM certificates WHERE tls_key = http_route.tls_key AND tls_cert = http_route.tls_cert;
+
+				IF NOT FOUND THEN
+					INSERT INTO certificates (tls_cert, tls_key)
+					VALUES (http_route.tls_cert, http_route.tls_key)
+					RETURNING id INTO certificate_id;
+				END IF;
+
+				INSERT INTO routes_certificate (http_route_id, certificate_id) VALUES(http_route.id, certificate_id);
+			END LOOP;
+		END $$`,
+		`ALTER TABLE http_routes DROP COLUMN tls_cert`,
+		`ALTER TABLE http_routes DROP COLUMN tls_key`,
+	)
 	return m.Migrate(db)
 }

@@ -225,15 +225,15 @@ func (h *httpSyncHandler) Current() map[string]struct{} {
 func (h *httpSyncHandler) Set(data *router.Route) error {
 	route := data.HTTPRoute()
 	r := &httpRoute{HTTPRoute: route}
+	cert := r.Certificate
 
-	if r.TLSCert != "" && r.TLSKey != "" {
-		kp, err := tls.X509KeyPair([]byte(r.TLSCert), []byte(r.TLSKey))
+	if cert != nil && cert.TLSCert != "" && cert.TLSKey != "" {
+		kp, err := tls.X509KeyPair([]byte(cert.TLSCert), []byte(cert.TLSKey))
 		if err != nil {
 			return err
 		}
 		r.keypair = &kp
-		r.TLSCert = ""
-		r.TLSKey = ""
+		r.Certificate = nil
 	}
 
 	h.l.mtx.Lock()
